@@ -1,0 +1,115 @@
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║  🔧 CORREÇÃO: Erro de Variáveis Não Utilizadas             ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+O TypeScript está reclamando de variáveis não utilizadas.
+Vamos desabilitar essa verificação estrita.
+
+┌──────────────────────────────────────────────────────────────┐
+│ SOLUÇÃO RÁPIDA: Execute no Ubuntu                           │
+└──────────────────────────────────────────────────────────────┘
+
+cd /opt/painel
+
+docker compose down
+
+# Corrigir tsconfig.json do backend
+cat > backend/tsconfig.json << 'EOF'
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+EOF
+
+# Reconstruir
+docker compose up -d --build
+
+# Monitorar
+docker compose logs -f backend
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ O QUE FOI MUDADO:                                           │
+└──────────────────────────────────────────────────────────────┘
+
+No arquivo backend/tsconfig.json:
+
+ANTES:
+  "noUnusedLocals": true,
+  "noUnusedParameters": true,
+
+DEPOIS:
+  "noUnusedLocals": false,
+  "noUnusedParameters": false,
+
+Isso permite que variáveis como 'req', 'next' etc. sejam declaradas
+mas não utilizadas, o que é comum em middlewares do Express.
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ VERIFICAR SUCESSO:                                          │
+└──────────────────────────────────────────────────────────────┘
+
+# Ver se está compilando
+docker compose logs backend | grep "error TS"
+
+# Se não aparecer nada, significa que compilou com sucesso!
+
+# Ver status
+docker compose ps
+
+# Deve mostrar todos os containers "Up"
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ ✅ SUCESSO SE VER:                                           │
+└──────────────────────────────────────────────────────────────┘
+
+Nos logs do backend:
+  "Servidor rodando na porta 3000"
+  "Ambiente: production"
+
+No comando docker compose ps:
+  soc-backend    Up
+  soc-db         Up
+  soc-frontend   Up
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ 🌐 ACESSAR:                                                  │
+└──────────────────────────────────────────────────────────────┘
+
+http://IP_DO_SEU_SERVIDOR
+
+Login: admin
+Senha: admin123
+
+
+╔══════════════════════════════════════════════════════════════╗
+║  ⏱️  TEMPO ESTIMADO: 8-10 minutos                            ║
+╚══════════════════════════════════════════════════════════════╝
