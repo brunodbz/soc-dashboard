@@ -1,336 +1,216 @@
-# Guia de Simulação - Dashboard SOC
+# 🧪 Guia de Simulação Local (Windows)
 
-Este guia mostra como visualizar a aplicação funcionando.
+## ⚠️ IMPORTANTE
+Este guia é para testar **localmente no Windows** antes de enviar para o servidor Ubuntu.
 
-## Opção 1: Instalação Rápida com Docker (RECOMENDADO)
+---
 
-### Pré-requisitos
-1. Instale o Docker Desktop para Windows: https://www.docker.com/products/docker-desktop
-2. Após instalar, reinicie o computador
+## Pré-requisitos Windows
 
-### Executar a Aplicação
+- Docker Desktop instalado e rodando
+- Git Bash ou PowerShell
+- Porta 80 e 3000 livres
+
+---
+
+## 🔧 Passo 1: Parar containers existentes
 
 ```powershell
-# 1. Navegue até o diretório do projeto
-cd C:\Users\Bruno\OneDrive\Documentos2\soc-dashboad
-
-# 2. Inicie todos os serviços
-docker-compose up -d
-
-# 3. Aguarde cerca de 30 segundos para tudo inicializar
-
-# 4. Acesse no navegador
-# http://localhost
+docker compose down
+docker system prune -a -f
 ```
 
-### Parar a Aplicação
+---
+
+## 🔧 Passo 2: Verificar arquivos corrigidos
+
+Certifique-se de que os seguintes arquivos têm as correções:
+
+### `frontend\tsconfig.json` linha 8:
+```json
+"types": ["vite/client"],
+```
+❌ NÃO DEVE TER `"node"` aqui!
+
+### `frontend\src\hooks\usePolling.ts` linha 11:
+```typescript
+const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+```
+❌ NÃO DEVE TER `NodeJS.Timeout`!
+
+### `backend\tsconfig.json` linhas 20-21:
+```json
+"noUnusedLocals": false,
+"noUnusedParameters": false,
+```
+
+### `frontend\tsconfig.json` linhas 18-19:
+```json
+"noUnusedLocals": false,
+"noUnusedParameters": false,
+```
+
+### `backend\Dockerfile` linha 6 e `frontend\Dockerfile` linha 4:
+```dockerfile
+RUN npm install
+```
+❌ NÃO DEVE SER `npm ci`!
+
+---
+
+## 🚀 Passo 3: Build local
 
 ```powershell
-docker-compose down
+docker compose up -d --build
 ```
 
 ---
 
-## Opção 2: Desenvolvimento Local (Requer Node.js)
-
-### Pré-requisitos
-1. Instale o Node.js 20+: https://nodejs.org/
-2. Instale o PostgreSQL 16+: https://www.postgresql.org/download/
-
-### Passo 1: Configurar Banco de Dados
+## 📊 Passo 4: Monitorar logs
 
 ```powershell
-# Criar banco de dados
-psql -U postgres
-CREATE DATABASE soc_dashboard;
-CREATE USER socadmin WITH PASSWORD 'securepassword';
-GRANT ALL PRIVILEGES ON DATABASE soc_dashboard TO socadmin;
-\q
-
-# Executar migrations
-psql -U socadmin -d soc_dashboard -f backend/src/database/migrations/init.sql
+docker compose logs -f
 ```
 
-### Passo 2: Configurar Backend
+### ✅ O que você DEVE ver:
+
+**Backend:**
+```
+soc-backend | Servidor rodando na porta 3000
+soc-backend | Conectado ao PostgreSQL
+```
+
+**Frontend:**
+```
+soc-frontend | ✓ built in XXXms
+soc-frontend | dist/index.html
+```
+
+**Database:**
+```
+soc-db | database system is ready to accept connections
+```
+
+### ❌ O que NÃO DEVE aparecer:
+
+- `error TS2688: Cannot find type definition file for 'node'`
+- `error TS2503: Cannot find namespace 'NodeJS'`
+- `error TS6133: 'req' is declared but its value is never read`
+- `error TS2339: Property 'env' does not exist on type 'ImportMeta'`
+- `npm error The 'npm ci' command can only install`
+
+Pressione `Ctrl+C` para sair dos logs.
+
+---
+
+## 🔍 Passo 5: Verificar status
 
 ```powershell
-cd backend
-
-# Instalar dependências
-npm install
-
-# Criar arquivo .env
-@"
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=soc_dashboard
-DB_USER=socadmin
-DB_PASSWORD=securepassword
-NODE_ENV=development
-PORT=3000
-JWT_SECRET=meu-secret-super-seguro-para-desenvolvimento
-ENCRYPTION_KEY=minha-chave-de-32-chars-aqui!!!
-"@ | Out-File -FilePath .env -Encoding UTF8
-
-# Iniciar o servidor backend
-npm run dev
+docker compose ps
 ```
 
-O backend estará rodando em: http://localhost:3000
+Deve mostrar:
+```
+NAME           STATUS         PORTS
+soc-backend    Up             0.0.0.0:3000->3000/tcp
+soc-db         Up (healthy)   0.0.0.0:5432->5432/tcp
+soc-frontend   Up             0.0.0.0:80->80/tcp
+```
 
-### Passo 3: Configurar Frontend (em outro terminal)
+---
+
+## 🌐 Passo 6: Testar no navegador
+
+Abra: http://localhost
+
+**Login:**
+- Usuário: `admin`
+- Senha: `admin123`
+
+### ✅ O que testar:
+
+1. ✅ Página de login carrega
+2. ✅ Após login, dashboard aparece com 5 cards
+3. ✅ Cards mostram dados simulados (mocks)
+4. ✅ Severidade aparece com cores (vermelho/amarelo/azul)
+5. ✅ Navegação para "Painel de Controle" funciona
+6. ✅ Formulário de configuração aparece
+
+---
+
+## 🐛 Troubleshooting Local
+
+### Problema: "Port 80 is already allocated"
+```powershell
+# Descobrir o que está usando a porta 80
+netstat -ano | findstr :80
+
+# Parar o processo (substitua PID pelo número encontrado)
+taskkill /PID <PID> /F
+
+# Ou altere a porta no docker-compose.yml:
+# ports:
+#   - "8080:80"
+```
+
+### Problema: Docker Desktop não inicia
+1. Abra Docker Desktop
+2. Settings → Resources → Alocar mais RAM (mínimo 4GB)
+3. Restart Docker Desktop
+
+### Problema: Containers param imediatamente
+```powershell
+# Ver logs de erro
+docker compose logs backend
+docker compose logs frontend
+docker compose logs postgres
+```
+
+---
+
+## 🔄 Passo 7: Limpar tudo (se necessário)
 
 ```powershell
-cd frontend
-
-# Instalar dependências
-npm install
-
-# Criar arquivo .env
-@"
-VITE_API_URL=http://localhost:3000/api
-"@ | Out-File -FilePath .env -Encoding UTF8
-
-# Iniciar o servidor de desenvolvimento
-npm run dev
-```
-
-O frontend estará rodando em: http://localhost:5173
-
----
-
-## O Que Você Verá
-
-### 1. Tela de Login (http://localhost ou http://localhost:5173)
-
-```
-┌─────────────────────────────────────────┐
-│                                         │
-│         SOC Dashboard                   │
-│                                         │
-│  ┌───────────────────────────────────┐ │
-│  │ Usuário:                          │ │
-│  │ [admin                         ]  │ │
-│  │                                   │ │
-│  │ Senha:                            │ │
-│  │ [••••••••                      ]  │ │
-│  │                                   │ │
-│  │      [ Entrar ]                   │ │
-│  │                                   │ │
-│  │ Credenciais padrão: admin/admin123│ │
-│  └───────────────────────────────────┘ │
-│                                         │
-└─────────────────────────────────────────┘
-```
-
-### 2. Dashboard Principal (após login)
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│ SOC Dashboard    [ Dashboard ]  [ Painel de Controle ]    admin  Sair│
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│  Dashboard de Segurança        Atualização automática a cada 30s ⟳   │
-│                                                                       │
-│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐          │
-│  │🔍 Elastic     │  │🛡️ Defender   │  │🎯 OpenCTI     │          │
-│  │   Search      │  │   365         │  │               │          │
-│  ├───────────────┤  ├───────────────┤  ├───────────────┤          │
-│  │┌─────────────┐│  │┌─────────────┐│  │┌─────────────┐│          │
-│  ││Tentativa... ││  ││Malware det..││  ││Novo IOC...  ││          │
-│  ││[Crítico] 🔴 ││  ││[Crítico] 🔴 ││  ││[Crítico] 🔴 ││          │
-│  ││27/01 15:30  ││  ││27/01 15:28  ││  ││27/01 15:25  ││          │
-│  │└─────────────┘│  │└─────────────┘│  │└─────────────┘│          │
-│  │┌─────────────┐│  │┌─────────────┐│  │┌─────────────┐│          │
-│  ││Tráfego...   ││  ││Atividade... ││  ││Campanha APT ││          │
-│  ││[Alto] 🟠    ││  ││[Alto] 🟠    ││  ││[Alto] 🟠    ││          │
-│  ││27/01 15:15  ││  ││27/01 15:10  ││  ││27/01 15:05  ││          │
-│  │└─────────────┘│  │└─────────────┘│  │└─────────────┘│          │
-│  │┌─────────────┐│  │┌─────────────┐│  │┌─────────────┐│          │
-│  ││Múltiplas... ││  ││Aplicação... ││  ││Domínio mal..││          │
-│  ││[Médio] 🟡   ││  ││[Médio] 🟡   ││  ││[Médio] 🟡   ││          │
-│  │└─────────────┘│  │└─────────────┘│  │└─────────────┘│          │
-│  └───────────────┘  └───────────────┘  └───────────────┘          │
-│                                                                       │
-│  ┌───────────────┐  ┌───────────────┐                               │
-│  │🔐 Tenable.io  │  │📰 RSS Feeds   │                               │
-│  ├───────────────┤  ├───────────────┤                               │
-│  │┌─────────────┐│  │┌─────────────┐│                               │
-│  ││Vulnerab...  ││  ││Nova vulne...││                               │
-│  ││[Crítico] 🔴 ││  ││[Médio] 🟡   ││                               │
-│  │└─────────────┘│  │└─────────────┘│                               │
-│  │┌─────────────┐│  │┌─────────────┐│                               │
-│  ││SSL/TLS...   ││  ││Atualização..││                               │
-│  ││[Alto] 🟠    ││  ││[Médio] 🟡   ││                               │
-│  │└─────────────┘│  │└─────────────┘│                               │
-│  └───────────────┘  └───────────────┘                               │
-│                                                                       │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-### 3. Painel de Controle
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│ SOC Dashboard    [ Dashboard ]  [Painel de Controle]    admin  Sair │
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│  Painel de Controle                                                  │
-│                                                                       │
-│  ┌─────────────────────────┐  ┌─────────────────────────────────┐  │
-│  │ Nova Configuração       │  │ Configurações Existentes         │  │
-│  ├─────────────────────────┤  ├─────────────────────────────────┤  │
-│  │                         │  │                                  │  │
-│  │ Serviço: *              │  │ ┌─────────────────────────────┐ │  │
-│  │ [Elastic Search    ▼]   │  │ │ elastic                     │ │  │
-│  │                         │  │ │ Tipo: SIEM                  │ │  │
-│  │ Tipo de Serviço: *      │  │ │ [Ativo] [Excluir]           │ │  │
-│  │ [SIEM             ]     │  │ └─────────────────────────────┘ │  │
-│  │                         │  │                                  │  │
-│  │ URL:                    │  │ ┌─────────────────────────────┐ │  │
-│  │ [https://elastic.com]   │  │ │ defender                    │ │  │
-│  │                         │  │ │ Tipo: EDR                   │ │  │
-│  │ API Key:                │  │ │ [Ativo] [Excluir]           │ │  │
-│  │ [••••••••••••••••]      │  │ └─────────────────────────────┘ │  │
-│  │                         │  │                                  │  │
-│  │ Token:                  │  │ ┌─────────────────────────────┐ │  │
-│  │ [••••••••••••••••]      │  │ │ rss                         │ │  │
-│  │                         │  │ │ Tipo: NEWS                  │ │  │
-│  │ ☑ Configuração ativa    │  │ │ [Ativo] [Excluir]           │ │  │
-│  │                         │  │ └─────────────────────────────┘ │  │
-│  │ [Salvar Configuração]   │  │                                  │  │
-│  └─────────────────────────┘  └─────────────────────────────────┘  │
-│                                                                       │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │ Histórico de Auditoria                    [Atualizar]        │   │
-│  ├──────────────────────────────────────────────────────────────┤   │
-│  │ Data/Hora         Usuário    Ação      Entidade             │   │
-│  │ 27/01/26 15:45    admin      CREATE    config               │   │
-│  │ 27/01/26 15:30    admin      UPDATE    config               │   │
-│  │ 27/01/26 15:15    admin      DELETE    config               │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                       │
-└──────────────────────────────────────────────────────────────────────┘
+docker compose down -v
+docker system prune -a --volumes -f
+docker compose up -d --build
 ```
 
 ---
 
-## Funcionalidades para Testar
+## ✅ Passo 8: Quando tudo funcionar localmente
 
-### 1. Dashboard
-- ✅ Visualize os 5 cards com dados simulados
-- ✅ Observe a atualização automática a cada 30 segundos
-- ✅ Veja as cores de severidade (Crítico=vermelho, Alto=laranja, Médio=amarelo, Baixo=azul)
-
-### 2. Painel de Controle
-- ✅ Adicione uma nova configuração de integração
-- ✅ Ative/desative configurações existentes
-- ✅ Exclua configurações
-- ✅ Visualize o histórico de auditoria
-
-### 3. Comportamento com Erros
-- ✅ Quando uma integração falha, o card mostra mensagem de erro
-- ✅ As outras integrações continuam funcionando normalmente
+**ENTÃO** copie o comando único do arquivo `SOLUCAO_DEFINITIVA.txt` e execute no servidor Ubuntu remoto.
 
 ---
 
-## Dados Simulados (Mocks)
+## 📋 Checklist Final Local
 
-Por padrão, a aplicação exibe **dados simulados** até você configurar as integrações reais:
-
-- **Elastic Search**: 5 alertas de segurança simulados
-- **Microsoft Defender 365**: 5 alertas de malware/phishing simulados
-- **OpenCTI**: 5 indicadores de ameaça simulados
-- **Tenable.io**: 5 vulnerabilidades simuladas
-- **RSS Feeds**: 5 notícias de segurança simuladas
-
-### Como Testar com Integrações Reais
-
-1. Acesse o **Painel de Controle**
-2. Clique em **Nova Configuração**
-3. Selecione o serviço (ex: Elastic Search)
-4. Preencha:
-   - **Tipo de Serviço**: SIEM
-   - **URL**: https://seu-elastic.com:9200
-   - **API Key**: sua_api_key_real
-5. Clique em **Salvar Configuração**
-6. Volte ao **Dashboard** e veja os dados reais aparecendo
+- [ ] `docker compose ps` mostra todos "Up"
+- [ ] Logs não mostram erros TypeScript
+- [ ] http://localhost abre a tela de login
+- [ ] Login funciona (admin/admin123)
+- [ ] Dashboard mostra 5 cards com dados
+- [ ] Painel de Controle acessível
+- [ ] Console do navegador sem erros críticos (F12)
 
 ---
 
-## Cores e Paleta Soft
+## 🚀 Deploy no Servidor Ubuntu
 
-A aplicação usa uma paleta de cores suave e profissional, adequada para videowall:
+Somente após TODOS os itens do checklist estarem ✅:
 
-- **Fundo**: Slate-50/100 (#f8fafc / #f1f5f9)
-- **Textos**: Slate-800 (#1e293b)
-- **Crítico**: Red-300 soft (#fca5a5)
-- **Alto**: Orange-300 soft (#fdba74)
-- **Médio**: Yellow-300 soft (#fcd34d)
-- **Baixo**: Blue-300 soft (#93c5fd)
-- **Info**: Indigo-300 soft (#a5b4fc)
+1. Acesse o servidor Ubuntu via SSH
+2. Copie e cole TODO o conteúdo de `SOLUCAO_DEFINITIVA.txt`
+3. Aguarde 12-15 minutos
+4. Acesse via IP do servidor
 
 ---
 
-## Troubleshooting Rápido
+## 💡 Dica Final
 
-### Porta 80 já está em uso
-```powershell
-# Pare outros serviços que usam a porta 80
-# Ou edite docker-compose.yml e mude "80:80" para "8080:80"
-# Depois acesse: http://localhost:8080
-```
-
-### Banco de dados não inicializa
-```powershell
-# Remova os volumes e recrie
-docker-compose down -v
-docker-compose up -d
-```
-
-### Frontend não carrega
-```powershell
-# Verifique se o backend está rodando
-docker-compose logs backend
-
-# Aguarde 30 segundos para todos os serviços iniciarem
-```
-
----
-
-## Screenshots de Referência
-
-### Paleta de Cores dos Badges
-```
-🔴 Crítico  - Fundo: #fca5a5 | Texto: #7f1d1d
-🟠 Alto     - Fundo: #fdba74 | Texto: #7c2d12
-🟡 Médio    - Fundo: #fcd34d | Texto: #713f12
-🔵 Baixo    - Fundo: #93c5fd | Texto: #1e3a8a
-```
-
-### Layout Responsivo
-- **Desktop (>1024px)**: 3 colunas
-- **Tablet (768-1024px)**: 2 colunas
-- **Mobile (<768px)**: 1 coluna
-
----
-
-## Próximos Passos
-
-1. **Instale o Docker Desktop** (ou Node.js + PostgreSQL)
-2. **Execute** `docker-compose up -d`
-3. **Acesse** http://localhost
-4. **Login** com `admin` / `admin123`
-5. **Explore** o dashboard e o painel de controle!
-
----
-
-## Observações Importantes
-
-- O dashboard **atualiza automaticamente** a cada 30 segundos
-- As **credenciais são criptografadas** no banco de dados
-- O **histórico de auditoria** registra todas as mudanças
-- Os **mocks garantem** que você veja a aplicação funcionando imediatamente
-- Você pode **configurar integrações reais** a qualquer momento no Painel de Controle
-
-Divirta-se explorando o SOC Dashboard! 🚀
+Se funcionar localmente mas falhar no servidor:
+- Verifique firewall (porta 80)
+- Verifique Docker instalado no Ubuntu
+- Verifique permissões de arquivo (`chmod +x`)
+- Compare versões do Docker (`docker --version`)
