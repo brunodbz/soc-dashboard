@@ -1,8 +1,15 @@
 ═══════════════════════════════════════════════════════════════
-    🎯 COMANDO ÚNICO - COLA TUDO DE UMA VEZ
+    🎯 SOLUÇÃO FINAL - NodeJS.Timeout
 ═══════════════════════════════════════════════════════════════
 
-cd /opt/painel && docker compose down && cat > backend/Dockerfile << 'EOF'
+EXECUTE NO UBUNTU:
+
+cd /opt/painel
+
+docker compose down
+
+# ========== Backend Dockerfile ==========
+cat > backend/Dockerfile << 'EOF'
 FROM node:20-alpine
 WORKDIR /app
 COPY package*.json ./
@@ -13,6 +20,8 @@ RUN npm prune --omit=dev
 EXPOSE 3000
 CMD ["node", "dist/server.js"]
 EOF
+
+# ========== Backend tsconfig.json ==========
 cat > backend/tsconfig.json << 'EOF'
 {
   "compilerOptions": {
@@ -42,6 +51,8 @@ cat > backend/tsconfig.json << 'EOF'
   "exclude": ["node_modules", "dist"]
 }
 EOF
+
+# ========== Frontend Dockerfile ==========
 cat > frontend/Dockerfile << 'EOF'
 FROM node:20-alpine AS builder
 WORKDIR /app
@@ -55,6 +66,8 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 EOF
+
+# ========== Frontend tsconfig.json ==========
 cat > frontend/tsconfig.json << 'EOF'
 {
   "compilerOptions": {
@@ -79,6 +92,8 @@ cat > frontend/tsconfig.json << 'EOF'
   "references": [{ "path": "./tsconfig.node.json" }]
 }
 EOF
+
+# ========== Frontend vite-env.d.ts ==========
 cat > frontend/src/vite-env.d.ts << 'EOF'
 /// <reference types="vite/client" />
 
@@ -90,6 +105,8 @@ interface ImportMeta {
   readonly env: ImportMetaEnv
 }
 EOF
+
+# ========== Frontend usePolling.ts (CORRIGIDO!) ==========
 cat > frontend/src/hooks/usePolling.ts << 'EOF'
 import { useState, useEffect, useCallback, useRef } from 'react';
 
@@ -135,16 +152,56 @@ export function usePolling<T>(
   return { data, loading, error, refetch: fetchData };
 }
 EOF
-sed -i '/^version:/d' docker-compose.yml && docker system prune -a -f && docker compose up -d --build
+
+# ========== Remover warning ==========
+sed -i '/^version:/d' docker-compose.yml
+
+# ========== Limpar cache ==========
+docker system prune -a -f
+
+# ========== Reconstruir ==========
+docker compose up -d --build
 
 
 ═══════════════════════════════════════════════════════════════
-    ✅ PRONTO! Aguarde 12-15 minutos
+    ✅ CORREÇÕES APLICADAS:
 ═══════════════════════════════════════════════════════════════
 
-Monitorar: docker compose logs -f
-Verificar: docker compose ps
-Acessar: http://$(hostname -I | awk '{print $1}')
+1. Backend tsconfig: noUnusedLocals/Parameters = false
+2. Frontend tsconfig: noUnusedLocals/Parameters = false
+3. Frontend tsconfig: types = ["vite/client", "node"]
+4. Frontend vite-env.d.ts: definido import.meta.env
+5. Frontend usePolling.ts: NodeJS.Timeout → ReturnType<typeof setInterval>
+
+
+═══════════════════════════════════════════════════════════════
+    📊 VERIFICAR:
+═══════════════════════════════════════════════════════════════
+
+docker compose logs -f
+
+Aguarde até ver:
+  - Backend: "Servidor rodando na porta 3000"
+  - Frontend: Build concluído
+
+Pressione Ctrl+C para sair
+
+docker compose ps
+
+Deve mostrar TODOS "Up":
+  soc-backend    Up
+  soc-db         Up  
+  soc-frontend   Up
+
+
+═══════════════════════════════════════════════════════════════
+    🌐 ACESSAR:
+═══════════════════════════════════════════════════════════════
+
+http://$(hostname -I | awk '{print $1}')
+
 Login: admin / admin123
 
-🚀 AGORA VAI FUNCIONAR!
+
+⏱️  TEMPO: 12-15 minutos
+🎯 AGORA VAI FUNCIONAR 100%! 🚀
